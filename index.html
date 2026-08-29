@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIH26104 · Voice Impersonation Detection</title>
+<style>
+  :root{
+    --bg:#0B1220; --panel:#111A2C; --panel-soft:#0E1626; --line:#1E2A44;
+    --text:#E6EDF7; --dim:#8CA0BF; --faint:#5A6B8C;
+    --live:#5AB8FF; --low:#3DDC97; --med:#F5C542; --high:#F58A42; --crit:#F0435A;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);padding:16px 16px 48px;
+       background-image:radial-gradient(1100px 500px at 70% -10%, rgba(90,184,255,0.07), transparent 60%)}
+  .wrap{max-width:1180px;margin:0 auto}
+  .hdr{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--live)}
+  h1{font-size:24px;font-weight:750;letter-spacing:-.01em;margin-top:2px}
+  h1 .thin{color:var(--dim);font-weight:400}
+  .tabs{display:flex;gap:8px}
+  .tab{font-family:var(--mono);font-size:12px;letter-spacing:.08em;padding:9px 18px;border-radius:8px;
+       cursor:pointer;text-transform:uppercase;background:transparent;color:var(--dim);
+       border:1px solid var(--line);font-weight:700;transition:all .15s}
+  .tab.active{background:var(--live);color:#06121F;border-color:var(--live)}
+  .tab:hover:not(.active){border-color:var(--live);color:var(--live)}
+  .banner{background:rgba(245,197,66,.10);border:1px solid var(--med);border-radius:8px;
+       padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--dim);line-height:1.5}
+  .banner b{color:var(--text)}
+  .banner .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--med);letter-spacing:.12em;margin-right:8px}
+  .banner.real{background:rgba(61,220,151,.08);border-color:var(--low)}
+  .banner.real .tag{color:var(--low)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--faint);
+       text-transform:uppercase;margin-bottom:10px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:14px}
+  .row{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+  .cta{font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.1em;padding:13px 28px;
+       border-radius:8px;cursor:pointer;border:none;color:#06121F;background:var(--low);transition:filter .15s}
+  .cta:hover{filter:brightness(1.1)}
+  .cta.stop{background:var(--crit)} .cta.blue{background:var(--live)}
+  #wave{flex:1 1 240px;min-width:200px;height:54px;border-radius:6px;border:1px solid var(--line);background:var(--panel-soft)}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .stat .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase}
+  .stat .val{font-family:var(--mono);font-size:18px;white-space:nowrap}
+  .stat .unit{font-size:11px;color:var(--dim);margin-left:3px}
+  .reasons{list-style:none;display:grid;gap:8px}
+  .reasons li{font-size:12.5px;line-height:1.45;display:flex;gap:8px}
+  .reasons li::before{content:"▸";font-family:var(--mono);color:var(--live)}
+  .empty{font-size:12.5px;color:var(--faint);line-height:1.5}
+  #timeline{width:100%;height:220px;display:block}
+  .tl-meta{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:6px}
+  .events{display:grid;gap:6px;max-height:190px;overflow-y:auto}
+  .ev{display:flex;gap:10px;font-family:var(--mono);font-size:11.5px;align-items:baseline}
+  .ev .t{color:var(--faint);flex-shrink:0}.ev .k{flex-shrink:0;min-width:70px}.ev .m{color:var(--dim)}
+  footer{margin-top:16px;display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;
+       font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .hidden{display:none!important}
+  .err{width:100%;font-size:12.5px;color:var(--high)}
+  .filemeta{font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .hint{font-size:12px;color:var(--faint)}
+  .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--low);
+       margin-right:6px;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  input[type=file]{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <div>
+      <div class="kicker">SIH26104 · SMART INDIA HACKATHON PROTOTYPE</div>
+      <h1>Voice Impersonation Detection <span class="thin">/ live risk console</span></h1>
+    </div>
+    <div class="tabs">
+      <button class="tab active" id="tab-live">Live monitor</button>
+      <button class="tab" id="tab-forensic">Forensic (file)</button>
+    </div>
+  </div>
+
+  <div class="banner" id="model-banner">
+    <span class="tag">⚠ CONNECTING…</span><span>Checking backend and active model…</span>
+  </div>
+
+  <div class="panel" id="ctl-live">
+    <div class="row">
+      <button class="cta" id="btn-mic">● START MICROPHONE</button>
+      <canvas id="wave" width="420" height="54"></canvas>
+      <div style="font-family:var(--mono);font-size:11px" id="live-status"><span style="color:var(--faint)">○ IDLE</span></div>
+      <div class="err hidden" id="mic-err"></div>
+    </div>
+  </div>
+  <div class="panel hidden" id="ctl-forensic">
+    <div class="row">
+      <label class="cta blue" for="file-in" id="file-lbl">⇪ UPLOAD AUDIO FILE</label>
+      <input type="file" id="file-in" accept="audio/*">
+      <div class="filemeta" id="file-meta"></div>
+      <div class="hint">WAV / MP3 / OGG · max 50 MB · analyzed by the backend pipeline</div>
+      <div class="err hidden" id="file-err"></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="eyebrow">Overall risk score</div>
+      <svg id="dial" viewBox="0 0 220 190" style="width:100%;max-width:300px;display:block;margin:0 auto"></svg>
+      <div style="display:flex;justify-content:space-around;margin-top:6px">
+        <div class="stat"><div class="lbl">Detector</div><div class="val" id="s-det" style="color:var(--med)">—<span class="unit">%</span></div></div>
+        <div class="stat"><div class="lbl">Streak</div><div class="val" id="s-streak">—<span class="unit">%</span></div></div>
+        <div class="stat"><div class="lbl">Latency</div><div class="val" id="s-lat" style="color:var(--live)">—<span class="unit">ms</span></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="eyebrow">Why this score — computed indicators only</div>
+      <ul class="reasons hidden" id="reasons"></ul>
+      <div class="empty" id="reasons-empty">No scored windows yet. Start the microphone and speak, or upload a file.
+        Windows without enough speech energy are skipped, not scored.</div>
+    </div>
+
+    <div class="panel">
+      <div class="eyebrow">Signal analytics — measured, not modeled</div>
+      <div class="statgrid">
+        <div class="stat"><div class="lbl">RMS energy</div><div class="val" id="f-rms">—</div></div>
+        <div class="stat"><div class="lbl">Zero-cross rate</div><div class="val" id="f-zcr">—</div></div>
+        <div class="stat"><div class="lbl">Spectral centroid</div><div class="val" id="f-cen">—<span class="unit">kHz</span></div></div>
+        <div class="stat"><div class="lbl">Rolloff (85%)</div><div class="val" id="f-roll">—<span class="unit">kHz</span></div></div>
+        <div class="stat"><div class="lbl">Flatness</div><div class="val" id="f-flat">—</div></div>
+        <div class="stat"><div class="lbl">Energy &gt; 4 kHz</div><div class="val" id="f-hi">—<span class="unit">%</span></div></div>
+        <div class="stat"><div class="lbl">Clipping</div><div class="val" id="f-clip">—<span class="unit">%</span></div></div>
+        <div class="stat"><div class="lbl">Confidence</div><div class="val" id="f-conf">—<span class="unit">%</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:14px">
+    <div class="eyebrow">Per-window timeline — detector score &amp; fused risk</div>
+    <canvas id="timeline"></canvas>
+    <div class="tl-meta" id="tl-meta">0 windows · 0 scored</div>
+  </div>
+
+  <div class="panel" style="margin-top:14px">
+    <div class="eyebrow">Detection events</div>
+    <div class="events hidden" id="events"></div>
+    <div class="empty" id="events-empty">Session events, level changes and quality warnings appear here.</div>
+  </div>
+
+  <footer>
+    <span id="foot-left">PIPELINE: connecting…</span>
+    <span>PRIVACY: audio streams to the local backend for scoring only · nothing is stored</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+var C = getComputedStyle(document.documentElement);
+function COL(k){ return C.getPropertyValue("--"+k).trim(); }
+var LEVEL_COLOR = {LOW:COL("low"), MEDIUM:COL("med"), HIGH:COL("high"), CRITICAL:COL("crit")};
+var API = location.origin + "/api/v1";
+var WS_URL = (location.protocol==="https:"?"wss://":"ws://") + location.host + "/api/v1/stream";
+
+var state = { mode:"live", cfg:null, windows:[], current:null, lastLevel:"LOW",
+              events:[], running:false, ws:null, audio:null };
+
+function $(id){ return document.getElementById(id); }
+
+/* ---------- backend handshake ---------- */
+function init(){
+  fetch(API+"/health").then(function(r){ return r.json(); }).then(function(h){
+    state.cfg = h.config;
+    var b = $("model-banner");
+    if(h.model.is_mock){
+      b.innerHTML = '<span class="tag">⚠ MOCK DETECTOR</span><span>Backend online. Pipeline, VAD and risk engine are real, but the '+
+        '<b>synthetic-speech score comes from a placeholder heuristic</b> (<b>'+h.model.name+'</b>), not a trained model. '+
+        'Set <b>VID_MODEL_PATH</b> to an AASIST .onnx to activate real detection.</span>';
+    } else {
+      b.className = "banner real";
+      b.innerHTML = '<span class="tag">● REAL MODEL</span><span>Backend online with trained model <b>'+h.model.name+'</b>.</span>';
+    }
+    $("foot-left").textContent = "MODEL: "+h.model.name+" · WINDOW "+h.config.window_sec+"s / HOP "+h.config.hop_sec+
+      "s · BANDS "+h.config.risk_bands.join("/");
+  }).catch(function(){
+    $("model-banner").innerHTML = '<span class="tag" style="color:var(--crit)">✕ BACKEND OFFLINE</span>'+
+      '<span>Could not reach '+API+'. Start the server and reload.</span>';
+  });
+  drawDial(0,"LOW",1); drawTimeline();
+}
+
+/* ---------- risk dial ---------- */
+function drawDial(risk, level, confidence){
+  var svg = $("dial"); var col = LEVEL_COLOR[level];
+  var cx=110, cy=108, r=86, start=-210, sweep=240, ticks=40;
+  var bands = state.cfg ? state.cfg.risk_bands : [30,60,80];
+  var s = "";
+  for(var i=0;i<ticks;i++){
+    var frac=i/(ticks-1), ang=(start+frac*sweep)*Math.PI/180;
+    var x1=cx+(r-12)*Math.cos(ang), y1=cy+(r-12)*Math.sin(ang);
+    var x2=cx+r*Math.cos(ang), y2=cy+r*Math.sin(ang);
+    var tv=frac*100;
+    var tc = tv<=bands[0]?COL("low"):tv<=bands[1]?COL("med"):tv<=bands[2]?COL("high"):COL("crit");
+    var on = tv<=risk;
+    s += '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(on?tc:COL("line"))+'" stroke-width="4" stroke-linecap="round" opacity="'+(on?1:0.55)+'"/>';
+  }
+  var na=(start+(risk/100)*sweep)*Math.PI/180;
+  s += '<line x1="'+cx+'" y1="'+cy+'" x2="'+(cx+(r-22)*Math.cos(na))+'" y2="'+(cy+(r-22)*Math.sin(na))+'" stroke="'+col+'" stroke-width="2.5" stroke-linecap="round"/>';
+  s += '<circle cx="'+cx+'" cy="'+cy+'" r="5" fill="'+col+'"/>';
+  s += '<text x="'+cx+'" y="'+(cy+44)+'" text-anchor="middle" style="font-family:var(--mono);font-size:34px;fill:var(--text);font-weight:700">'+risk+'</text>';
+  s += '<text x="'+cx+'" y="'+(cy+62)+'" text-anchor="middle" style="font-family:var(--mono);font-size:12px;fill:'+col+';letter-spacing:.2em">'+level+'</text>';
+  s += '<text x="'+cx+'" y="'+(cy+78)+'" text-anchor="middle" style="font-family:var(--mono);font-size:9px;fill:var(--faint)">confidence '+(confidence*100).toFixed(0)+'%</text>';
+  svg.innerHTML = s;
+}
+
+/* ---------- timeline ---------- */
+function drawTimeline(){
+  var cv=$("timeline"); var dpr=window.devicePixelRatio||1;
+  var W=cv.clientWidth||800, H=220;
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+"px";
+  var g=cv.getContext("2d"); g.scale(dpr,dpr);
+  g.fillStyle=COL("panel-soft"); g.fillRect(0,0,W,H);
+  var padL=34,padR=8,padT=10,padB=22, iw=W-padL-padR, ih=H-padT-padB;
+  g.font="9px "+C.getPropertyValue("--mono");
+  [0,25,50,75,100].forEach(function(yv){
+    var y=padT+ih*(1-yv/100);
+    g.strokeStyle=COL("line"); g.setLineDash([2,4]);
+    g.beginPath(); g.moveTo(padL,y); g.lineTo(W-padR,y); g.stroke(); g.setLineDash([]);
+    g.fillStyle=COL("faint"); g.textAlign="right"; g.fillText(yv, padL-6, y+3);
+  });
+  var thr=(state.cfg?state.cfg.synth_threshold:0.5)*100;
+  var ty=padT+ih*(1-thr/100);
+  g.strokeStyle=COL("med"); g.setLineDash([4,4]);
+  g.beginPath(); g.moveTo(padL,ty); g.lineTo(W-padR,ty); g.stroke(); g.setLineDash([]);
+  g.fillStyle=COL("med"); g.textAlign="left"; g.fillText("window threshold", padL+4, ty-4);
+
+  var data=state.windows, n=data.length;
+  function x(i){ return padL + (n===1? iw/2 : iw*i/(n-1)); }
+  function y(v){ return padT + ih*(1-v/100); }
+  if(n>0){
+    g.beginPath(); var st=false;
+    for(var i=0;i<n;i++){
+      if(data[i].score===null){st=false;continue}
+      if(!st){g.moveTo(x(i),y(data[i].score));st=true}else g.lineTo(x(i),y(data[i].score));
+    }
+    g.strokeStyle=COL("live"); g.lineWidth=1.5; g.stroke();
+    g.beginPath(); st=false;
+    for(var j=0;j<n;j++){
+      if(data[j].risk===null)continue;
+      if(!st){g.moveTo(x(j),y(data[j].risk));st=true}else g.lineTo(x(j),y(data[j].risk));
+    }
+    g.strokeStyle=LEVEL_COLOR[state.current?state.current.level:"LOW"]; g.lineWidth=2.2; g.stroke();
+    g.fillStyle=COL("faint"); g.textAlign="center";
+    var step=Math.max(1,Math.floor(n/8));
+    for(var k=0;k<n;k+=step) g.fillText(data[k].t, x(k), H-8);
+  }
+  var scored=data.filter(function(d){return d.score!==null}).length;
+  $("tl-meta").textContent = n+" windows · "+scored+" scored · blue = detector score, colored = fused risk";
+}
+window.addEventListener("resize", drawTimeline);
+
+/* ---------- events + results ---------- */
+function pushEvent(type,msg){
+  state.events.unshift({t:new Date().toLocaleTimeString(),type:type,msg:msg});
+  state.events=state.events.slice(0,40);
+  $("events-empty").classList.add("hidden");
+  var el=$("events"); el.classList.remove("hidden");
+  el.innerHTML = state.events.map(function(e){
+    var c = LEVEL_COLOR[e.type] || (e.type==="ERROR"?COL("crit"):e.type==="QUALITY"?COL("high"):COL("live"));
+    return '<div class="ev"><span class="t">'+e.t+'</span><span class="k" style="color:'+c+'">['+e.type+']</span><span class="m">'+e.msg+'</span></div>';
+  }).join("");
+}
+function applyWindow(w){
+  state.windows.push({t:Math.round(w.t_sec)+"s", score:w.speech?Math.round(w.score*100):null, risk:w.risk?w.risk.risk:null});
+  if(state.windows.length>150) state.windows.shift();
+  if(w.risk){
+    state.current=w.risk;
+    drawDial(w.risk.risk, w.risk.level, w.risk.confidence);
+    if(w.risk.level!==state.lastLevel){
+      pushEvent(w.risk.level, "Risk level "+state.lastLevel+" → "+w.risk.level+" (score "+w.risk.risk+")");
+      state.lastLevel=w.risk.level;
+    }
+    $("s-det").firstChild.textContent=(w.risk.ema*100).toFixed(0);
+    $("s-streak").firstChild.textContent=(w.risk.streak*100).toFixed(0);
+    $("f-conf").firstChild.textContent=(w.risk.confidence*100).toFixed(0);
+    var ul=$("reasons"); ul.classList.remove("hidden"); $("reasons-empty").classList.add("hidden");
+    ul.innerHTML=w.risk.reasons.map(function(r){return "<li>"+r+"</li>"}).join("");
+  }
+  if(w.features && w.features.rms!==undefined){
+    var f=w.features;
+    $("f-rms").textContent=f.rms.toFixed(3);
+    $("f-zcr").textContent=f.zcr.toFixed(3);
+    $("f-cen").firstChild.textContent=(f.centroid_hz/1000).toFixed(2);
+    $("f-roll").firstChild.textContent=(f.rolloff_hz/1000).toFixed(2);
+    $("f-flat").textContent=f.flatness.toFixed(3);
+    $("f-hi").firstChild.textContent=(f.high_ratio*100).toFixed(1);
+    $("f-clip").firstChild.textContent=(f.clip_frac*100).toFixed(2);
+  }
+  if(w.processing_ms!==undefined) $("s-lat").firstChild.textContent=w.processing_ms.toFixed(0);
+  drawTimeline();
+}
+function resetSession(){
+  state.windows=[]; state.current=null; state.lastLevel="LOW"; state.events=[];
+  $("events").classList.add("hidden"); $("events-empty").classList.remove("hidden");
+  $("reasons").classList.add("hidden"); $("reasons-empty").classList.remove("hidden");
+  drawDial(0,"LOW",1); drawTimeline();
+}
+
+/* ---------- live mode ---------- */
+function startMic(){
+  resetSession();
+  $("mic-err").classList.add("hidden");
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    micFail("Microphone API unavailable. Use Forensic mode instead."); return;
+  }
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})
+  .then(function(stream){
+    var ws = new WebSocket(WS_URL); ws.binaryType="arraybuffer";
+    state.ws = ws;
+    ws.onerror = function(){ micFail("WebSocket connection failed. Is the server running?"); };
+    ws.onmessage = function(ev){
+      var m = JSON.parse(ev.data);
+      if(m.type==="window") applyWindow(m);
+      else if(m.type==="error") pushEvent("ERROR", m.detail);
+    };
+    ws.onopen = function(){
+      var ctx = new (window.AudioContext||window.webkitAudioContext)();
+      var src = ctx.createMediaStreamSource(stream);
+      var analyser = ctx.createAnalyser(); analyser.fftSize=2048; src.connect(analyser);
+      var proc = ctx.createScriptProcessor(4096,1,1);
+      ws.send(JSON.stringify({type:"start", sample_rate:ctx.sampleRate, format:"f32"}));
+      proc.onaudioprocess = function(ev){
+        if(ws.readyState===1) ws.send(ev.inputBuffer.getChannelData(0).buffer.slice(0));
+      };
+      src.connect(proc); proc.connect(ctx.destination);
+      state.audio={ctx:ctx,stream:stream,proc:proc,analyser:analyser};
+      state.running=true;
+      $("btn-mic").textContent="■ STOP MONITORING"; $("btn-mic").classList.add("stop");
+      $("live-status").innerHTML='<span class="pulse"></span><span style="color:var(--low)">LIVE — nothing stored</span>';
+      pushEvent("SESSION","Live monitoring started @ "+ctx.sampleRate+" Hz");
+      (function draw(){
+        if(!state.running) return;
+        var cv=$("wave"), g=cv.getContext("2d");
+        var d=new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(d);
+        g.fillStyle=COL("panel-soft"); g.fillRect(0,0,cv.width,cv.height);
+        g.strokeStyle=COL("live"); g.lineWidth=1.5; g.beginPath();
+        for(var i=0;i<d.length;i++){var x=i/d.length*cv.width, y=d[i]/255*cv.height; i?g.lineTo(x,y):g.moveTo(x,y)}
+        g.stroke(); requestAnimationFrame(draw);
+      })();
+    };
+  })
+  .catch(function(e){ micFail("Microphone access failed ("+e.name+"). Grant permission, or use Forensic mode."); });
+}
+function micFail(msg){ var e=$("mic-err"); e.textContent=msg; e.classList.remove("hidden"); }
+function stopMic(){
+  state.running=false;
+  if(state.ws && state.ws.readyState===1){ state.ws.send(JSON.stringify({type:"stop"})); state.ws.close(); }
+  if(state.audio){
+    state.audio.proc.disconnect(); state.audio.analyser.disconnect();
+    state.audio.stream.getTracks().forEach(function(t){t.stop()}); state.audio.ctx.close();
+    state.audio=null;
+  }
+  $("btn-mic").textContent="● START MICROPHONE"; $("btn-mic").classList.remove("stop");
+  $("live-status").innerHTML='<span style="color:var(--faint)">○ IDLE</span>';
+  pushEvent("SESSION","Live monitoring stopped");
+}
+$("btn-mic").addEventListener("click", function(){ state.running?stopMic():startMic(); });
+
+/* ---------- forensic mode ---------- */
+$("file-in").addEventListener("change", function(ev){
+  var file=ev.target.files[0]; if(!file) return;
+  $("file-err").classList.add("hidden");
+  if(file.size>50*1024*1024){var e=$("file-err");e.textContent="File exceeds 50 MB limit";e.classList.remove("hidden");return}
+  resetSession();
+  $("file-lbl").textContent="ANALYZING…";
+  var fd=new FormData(); fd.append("file",file);
+  fetch(API+"/score",{method:"POST",body:fd})
+  .then(function(r){
+    if(!r.ok){ return r.json().then(function(b){ throw new Error(b.detail||("HTTP "+r.status)); }); }
+    return r.json();
+  })
+  .then(function(b){
+    $("file-meta").textContent=file.name+" · "+b.duration_sec+"s · "+b.n_scored+"/"+b.n_windows+" windows · "+b.processing_ms+" ms";
+    pushEvent("SESSION",'Analyzed "'+file.name+'" — '+b.duration_sec+"s");
+    b.windows.forEach(applyWindow);
+    if(b.n_scored===0) pushEvent("QUALITY","No windows passed the speech-energy gate");
+  })
+  .catch(function(e){
+    var el=$("file-err"); el.textContent="Analysis failed: "+e.message; el.classList.remove("hidden");
+    pushEvent("ERROR", e.message);
+  })
+  .finally(function(){ $("file-lbl").textContent="⇪ UPLOAD AUDIO FILE"; ev.target.value=""; });
+});
+
+/* ---------- tabs ---------- */
+function setMode(m){
+  if(state.running) stopMic();
+  state.mode=m; resetSession();
+  $("tab-live").classList.toggle("active",m==="live");
+  $("tab-forensic").classList.toggle("active",m==="forensic");
+  $("ctl-live").classList.toggle("hidden",m!=="live");
+  $("ctl-forensic").classList.toggle("hidden",m!=="forensic");
+}
+$("tab-live").addEventListener("click",function(){setMode("live")});
+$("tab-forensic").addEventListener("click",function(){setMode("forensic")});
+
+init();
+</script>
+</body>
+</html>
